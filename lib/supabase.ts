@@ -2,9 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 
-const SUPABASE_URL = 'https://vpzlmfczldajzghgrzkp.supabase.co'
-const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZwemxtZmN6bGRhanpnaGdyemtwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwODM5NDMsImV4cCI6MjA4OTY1OTk0M30.QrVFyy8UgK84VyC8ZL7lDtTcE0SxCx2-M-syU7lvE8s'
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+
+if (__DEV__ && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
+  throw new Error(
+    'Missing Supabase env vars. Copy .env.example → .env.local and fill in EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.',
+  )
+}
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {

@@ -96,6 +96,8 @@ function EditProfileModal({
     try {
       await onSave(name.trim(), city.trim())
       onClose()
+    } catch (err: any) {
+      Alert.alert('Save failed', err?.message ?? 'Please try again.')
     } finally {
       setSaving(false)
     }

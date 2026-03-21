@@ -49,29 +49,28 @@ async function fetchOwnerListings(ownerId: string): Promise<PGListing[]> {
 }
 
 async function fetchDashboardStats(ownerId: string): Promise<DashboardStats> {
-  const [listingsRes, shortlistsRes] = await Promise.all([
-    supabase
-      .from('pg_listings')
-      .select('id, is_active')
-      .eq('owner_id', ownerId),
-    supabase
-      .from('shortlists')
-      .select('id', { count: 'exact', head: true })
-      .in(
-        'pg_id',
-        // sub-select owner's listing IDs
-        supabase
-          .from('pg_listings')
-          .select('id')
-          .eq('owner_id', ownerId) as any,
-      ),
-  ])
+  // Step 1: fetch all listing IDs + active status for this owner
+  const listingsRes = await supabase
+    .from('pg_listings')
+    .select('id, is_active')
+    .eq('owner_id', ownerId)
 
   const listings = listingsRes.data ?? []
   const activeListings = listings.filter((l) => l.is_active).length
   const totalListings = listings.length
-  const totalShortlists = shortlistsRes.count ?? 0
 
+  if (totalListings === 0) {
+    return { totalShortlists: 0, activeListings, totalListings }
+  }
+
+  // Step 2: count shortlists across those listing IDs
+  const listingIds = listings.map((l) => l.id)
+  const shortlistsRes = await supabase
+    .from('shortlists')
+    .select('id', { count: 'exact', head: true })
+    .in('pg_id', listingIds)
+
+  const totalShortlists = shortlistsRes.count ?? 0
   return { totalShortlists, activeListings, totalListings }
 }
 

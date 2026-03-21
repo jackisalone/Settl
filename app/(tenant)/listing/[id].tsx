@@ -356,7 +356,9 @@ function OwnerCard({
 
   function handleMessage() {
     if (owner.phone) {
-      Linking.openURL(`whatsapp://send?phone=${owner.phone}`)
+      // Ensure +91 country code for Indian numbers
+      const phone = owner.phone.startsWith('+') ? owner.phone : `+91${owner.phone}`
+      Linking.openURL(`whatsapp://send?phone=${phone}`)
     } else if (owner.email) {
       Linking.openURL(`mailto:${owner.email}`)
     }
@@ -595,7 +597,9 @@ function StickyBottomBar({
   function handleContact() {
     if (!owner) return
     if (owner.phone) {
-      Linking.openURL(`whatsapp://send?phone=${owner.phone}`)
+      // Ensure +91 country code for Indian numbers
+      const phone = owner.phone.startsWith('+') ? owner.phone : `+91${owner.phone}`
+      Linking.openURL(`whatsapp://send?phone=${phone}`)
         .catch(() => Linking.openURL(`tel:${owner.phone!}`))
     } else if (owner.email) {
       Linking.openURL(`mailto:${owner.email}`)

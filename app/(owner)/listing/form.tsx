@@ -593,7 +593,7 @@ function Step4({
 
   async function handleAddPhotos() {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 0.8,
       selectionLimit: 8 - totalPhotos,
@@ -682,7 +682,7 @@ export default function ListingFormScreen() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { session } = useAuthStore()
-  const ownerId = session?.user.id!
+  const ownerId = session?.user.id ?? ''
   const isEdit = !!listingId
 
   const [state, dispatch] = useReducer(formReducer, INITIAL_STATE)

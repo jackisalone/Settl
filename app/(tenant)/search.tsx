@@ -57,6 +57,7 @@ async function fetchSearchResults(filters: SearchFilters): Promise<PGListing[]> 
     .select('*')
     .eq('is_active', true)
     .order('created_at', { ascending: false })
+    .limit(100)
 
   if (filters.query.trim()) {
     q = q.or(
