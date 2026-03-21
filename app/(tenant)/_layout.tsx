@@ -1,11 +1,13 @@
 import { Tabs } from 'expo-router'
 import { Heart, Home, Search, User } from 'lucide-react-native'
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'
 
 const ACTIVE = '#2563EB'
 const INACTIVE = '#9CA3AF'
 
 export default function TenantLayout() {
   return (
+    <BottomSheetModalProvider>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -53,5 +55,6 @@ export default function TenantLayout() {
         }}
       />
     </Tabs>
+    </BottomSheetModalProvider>
   )
 }

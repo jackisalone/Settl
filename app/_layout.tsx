@@ -1,8 +1,10 @@
 import '../global.css'
+import 'react-native-gesture-handler'
 import { Stack, useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
@@ -130,6 +132,7 @@ export default function RootLayout() {
   }, [])
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <QueryClientProvider client={queryClient}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth/login" />
@@ -141,5 +144,6 @@ export default function RootLayout() {
       {/* Overlay — covers the Stack until auth is resolved */}
       {!isReady && <SplashLoading />}
     </QueryClientProvider>
+    </GestureHandlerRootView>
   )
 }
