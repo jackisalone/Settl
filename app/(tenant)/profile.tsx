@@ -365,7 +365,8 @@ export default function TenantProfileScreen() {
 
     const asset = result.assets[0]
     const ext = asset.uri.split('.').pop() ?? 'jpg'
-    const path = `avatars/${userId}.${ext}`
+    // Store under user's own ID folder so existing storage policy applies
+    const path = `${userId}/avatar.${ext}`
 
     setUploadingPhoto(true)
     try {

@@ -1,11 +1,19 @@
-import { Tabs } from 'expo-router'
+import { Tabs, Redirect } from 'expo-router'
 import { Building2, ChartBar, User } from 'lucide-react-native'
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'
+import { useAuthStore } from '@/store/authStore'
 
 const ACTIVE = '#2563EB'
 const INACTIVE = '#9CA3AF'
 
 export default function OwnerLayout() {
+  const { profile } = useAuthStore()
+
+  // Redirect authenticated tenants who land on owner routes back to their dashboard
+  if (profile && profile.role !== 'owner') {
+    return <Redirect href="/(tenant)" />
+  }
+
   return (
     <BottomSheetModalProvider>
       <Tabs

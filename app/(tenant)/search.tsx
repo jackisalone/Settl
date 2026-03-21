@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Search as SearchIcon, SlidersHorizontal, X } from 'lucide-react-native'
 import { BottomSheetModal, BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
@@ -31,6 +31,8 @@ import type { PGListing } from '@/types/index'
 import PGCard from '@/components/PGCard'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 20
 
 const CITIES = ['All', 'Mumbai', 'Bangalore', 'Delhi', 'Chennai', 'Pune', 'Hyderabad']
 
@@ -51,13 +53,16 @@ interface SearchFilters {
   city: string
 }
 
-async function fetchSearchResults(filters: SearchFilters): Promise<PGListing[]> {
+async function fetchSearchResults(filters: SearchFilters, page: number): Promise<PGListing[]> {
+  const from = page * PAGE_SIZE
+  const to = from + PAGE_SIZE - 1
+
   let q = supabase
     .from('pg_listings')
     .select('*')
     .eq('is_active', true)
     .order('created_at', { ascending: false })
-    .limit(100)
+    .range(from, to)
 
   if (filters.query.trim()) {
     q = q.or(
@@ -380,12 +385,23 @@ export default function SearchScreen() {
     city !== 'All'
   )
 
-  const { data: results = [], isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    fetchNextPage,
+    hasNextPage,
+  } = useInfiniteQuery({
     queryKey: ['search', filters],
-    queryFn: () => fetchSearchResults(filters),
+    queryFn: ({ pageParam }) => fetchSearchResults(filters, pageParam as number),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === PAGE_SIZE ? allPages.length : undefined,
     enabled: queryEnabled,
     staleTime: 30_000,
   })
+
+  const results = data?.pages.flat() ?? []
 
   const openSheet = useCallback(() => {
     Keyboard.dismiss()
@@ -465,11 +481,19 @@ export default function SearchScreen() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage() }}
+            onEndReachedThreshold={0.4}
             ListHeaderComponent={
               results.length > 0 ? (
                 <Text style={styles.resultCount}>
                   {results.length} PG{results.length !== 1 ? 's' : ''} found
+                  {hasNextPage ? '+' : ''}
                 </Text>
+              ) : null
+            }
+            ListFooterComponent={
+              isFetchingNextPage ? (
+                <ActivityIndicator color="#2563EB" style={{ marginVertical: 16 }} />
               ) : null
             }
             ListEmptyComponent={<EmptyState />}

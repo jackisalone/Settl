@@ -390,6 +390,7 @@ function Step1({ state, dispatch }: { state: FormState; dispatch: React.Dispatch
           multiline
           numberOfLines={4}
           textAlignVertical="top"
+          maxLength={1000}
         />
 
         <Label text="City *" />

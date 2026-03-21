@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Animated,
   Linking,
   Pressable,
   ScrollView,
@@ -34,7 +35,7 @@ import {
   Wind,
   Zap,
 } from 'lucide-react-native'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useShortlistStore } from '@/store/shortlistStore'
 import { useAuthStore } from '@/store/authStore'
@@ -155,7 +156,7 @@ function PhotoGallery({
           showsHorizontalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}
-          keyExtractor={(_, i) => String(i)}
+          keyExtractor={(item) => item}
           renderItem={({ item }) => (
             <Image
               source={{ uri: item }}
@@ -510,11 +511,25 @@ function SkeletonLine({
   height?: number
   style?: object
 }) {
+  const opacity = useRef(new Animated.Value(1)).current
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    )
+    anim.start()
+    return () => anim.stop()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
-    <View
+    <Animated.View
       style={[
         styles.skeletonLine,
-        { width: width as any, height },
+        { width: width as any, height, opacity },
         style,
       ]}
     />
@@ -522,9 +537,23 @@ function SkeletonLine({
 }
 
 function SkeletonDetail() {
+  const opacity = useRef(new Animated.Value(1)).current
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    )
+    anim.start()
+    return () => anim.stop()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <View style={styles.skeletonGallery} />
+      <Animated.View style={[styles.skeletonGallery, { opacity }]} />
       <View style={{ padding: 16, gap: 12 }}>
         <SkeletonLine width="70%" height={22} />
         <SkeletonLine width="45%" />
