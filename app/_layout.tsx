@@ -2,10 +2,20 @@ import '../global.css'
 import { Stack, useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { mapUser } from '@/types/index'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2, // 2 min
+      retry: 1,
+    },
+  },
+})
 
 // ─── Loading screen ───────────────────────────────────────────────────────────
 // Shown while the initial session check is in progress.
@@ -120,7 +130,7 @@ export default function RootLayout() {
   }, [])
 
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth/login" />
         <Stack.Screen name="auth/onboarding" />
@@ -130,6 +140,6 @@ export default function RootLayout() {
 
       {/* Overlay — covers the Stack until auth is resolved */}
       {!isReady && <SplashLoading />}
-    </>
+    </QueryClientProvider>
   )
 }
