@@ -326,11 +326,11 @@ export default function OwnerDashboardScreen() {
 
   // ── Navigate to edit ───────────────────────────────────────────────────────
   function handleEdit(listingId: string) {
-    router.push(`/(owner)/listing/edit/${listingId}`)
+    router.push(`/(owner)/listing/form?listingId=${listingId}`)
   }
 
   function handleAddListing() {
-    router.push('/(owner)/listing/create')
+    router.push('/(owner)/listing/form')
   }
 
   return (
