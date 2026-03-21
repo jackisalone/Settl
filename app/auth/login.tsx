@@ -1,77 +1,65 @@
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Linking,
+  Platform,
   Pressable,
   Text,
+  TextInput,
   View,
 } from 'react-native'
-import { makeRedirectUri } from 'expo-auth-session'
-import * as WebBrowser from 'expo-web-browser'
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-WebBrowser.maybeCompleteAuthSession()
-
-const GOOGLE_ICON = (
-  // Inline SVG-like approach via coloured letter blocks is not native-friendly.
-  // We render a coloured "G" using styled Text as a stand-in.
-  // Replace with an <Image> asset once you add the Google G logo to assets/.
-  <View className="w-6 h-6 items-center justify-center">
-    <Text style={{ fontSize: 18, fontWeight: '700', color: '#4285F4' }}>G</Text>
-  </View>
-)
+type Step = 'email' | 'otp'
 
 export default function LoginScreen() {
   const router = useRouter()
+  const [step, setStep] = useState<Step>('email')
+  const [email, setEmail] = useState('')
+  const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
+  const otpRef = useRef<TextInput>(null)
 
-  async function handleGoogleSignIn() {
-    if (loading) return
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  const otpValid = otp.trim().length === 6
+
+  async function handleSendOtp() {
+    if (!emailValid || loading) return
     setLoading(true)
-
     try {
-      const redirectTo = makeRedirectUri({ scheme: 'settl', path: 'auth/callback' })
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo,
-          skipBrowserRedirect: true,
-        },
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim().toLowerCase(),
+        options: { shouldCreateUser: true },
       })
+      if (error) throw error
+      setStep('otp')
+      // Auto-focus OTP field after state update
+      setTimeout(() => otpRef.current?.focus(), 100)
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Could not send code. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-      if (error || !data?.url) throw error ?? new Error('No OAuth URL returned')
+  async function handleVerifyOtp() {
+    if (!otpValid || loading) return
+    setLoading(true)
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: otp.trim(),
+        type: 'email',
+      })
+      if (error) throw error
 
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo)
-
-      if (result.type !== 'success') {
-        // User cancelled — not an error
-        setLoading(false)
-        return
-      }
-
-      // Extract session from the redirect URL
-      const url = result.url
-      const params = new URLSearchParams(url.split('#')[1] ?? url.split('?')[1] ?? '')
-      const accessToken = params.get('access_token')
-      const refreshToken = params.get('refresh_token')
-
-      if (accessToken && refreshToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        })
-        if (sessionError) throw sessionError
-      }
-
-      // Check if user profile exists in our users table
       const {
         data: { user },
       } = await supabase.auth.getUser()
-
-      if (!user) throw new Error('No user after OAuth')
+      if (!user) throw new Error('No user after verification')
 
       const { data: profile, error: profileError } = await supabase
         .from('users')
@@ -82,80 +70,143 @@ export default function LoginScreen() {
       if (profileError) throw profileError
 
       if (!profile) {
-        // New user — go to onboarding
         router.replace('/auth/onboarding')
       } else {
-        // Returning user — route by role
-        if (profile.role === 'owner') {
-          router.replace('/(owner)')
-        } else {
-          router.replace('/(tenant)')
-        }
+        router.replace(profile.role === 'owner' ? '/(owner)' : '/(tenant)')
       }
-    } catch (err) {
-      console.error('OAuth error:', err)
-      Alert.alert('Sign in failed', 'Please try again.')
+    } catch (err: any) {
+      Alert.alert('Invalid code', err?.message ?? 'Please check the code and try again.')
+      setOtp('')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <View className="flex-1 bg-white px-6 pt-24 pb-12">
-      {/* Wordmark */}
-      <Text className="text-5xl font-bold text-blue-600 tracking-tight mb-6">
-        settl
-      </Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-white"
+    >
+      <View className="flex-1 px-6 pt-24 pb-12">
+        {/* Wordmark */}
+        <Text className="text-5xl font-bold text-blue-600 tracking-tight mb-6">
+          settl
+        </Text>
 
-      {/* Headline */}
-      <Text className="text-3xl font-bold text-gray-900 leading-tight mb-3">
-        Find your perfect PG
-      </Text>
+        {/* Headline */}
+        <Text className="text-3xl font-bold text-gray-900 leading-tight mb-3">
+          Find your perfect PG
+        </Text>
 
-      {/* City sub-text */}
-      <Text className="text-sm text-gray-400 mb-auto">
-        Mumbai · Bangalore · Delhi · Chennai
-      </Text>
+        {/* Cities */}
+        <Text className="text-sm text-gray-400">
+          Mumbai · Bangalore · Delhi · Chennai
+        </Text>
 
-      {/* Spacer */}
-      <View className="flex-1" />
+        <View className="flex-1" />
 
-      {/* Google sign-in button */}
-      <Pressable
-        onPress={handleGoogleSignIn}
-        disabled={loading}
-        className="flex-row items-center justify-center bg-white border border-gray-200 rounded-xl h-[52px] w-full mb-4 active:bg-gray-50"
-        style={{ elevation: 1 }}
-      >
-        {loading ? (
-          <ActivityIndicator size="small" color="#6B7280" />
+        {step === 'email' ? (
+          <>
+            <Text className="text-base font-medium text-gray-700 mb-2">
+              Enter your email to continue
+            </Text>
+            <TextInput
+              className="h-[52px] border border-gray-200 rounded-xl px-4 text-base text-gray-900 mb-4 bg-white"
+              placeholder="you@example.com"
+              placeholderTextColor="#9CA3AF"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={handleSendOtp}
+            />
+            <Pressable
+              onPress={handleSendOtp}
+              disabled={!emailValid || loading}
+              className="h-[52px] rounded-xl items-center justify-center mb-4"
+              style={{ backgroundColor: emailValid ? '#2563EB' : '#E5E7EB' }}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text
+                  className="text-base font-semibold"
+                  style={{ color: emailValid ? '#fff' : '#9CA3AF' }}
+                >
+                  Send Code
+                </Text>
+              )}
+            </Pressable>
+          </>
         ) : (
           <>
-            {GOOGLE_ICON}
-            <Text className="ml-3 text-base font-medium text-gray-800">
-              Continue with Google
+            <Text className="text-base font-medium text-gray-700 mb-1">
+              Enter the 6-digit code sent to
             </Text>
+            <Text className="text-base font-semibold text-blue-600 mb-4">
+              {email}
+            </Text>
+            <TextInput
+              ref={otpRef}
+              className="h-[52px] border border-gray-200 rounded-xl px-4 text-2xl text-gray-900 tracking-widest mb-2 bg-white text-center"
+              placeholder="••••••"
+              placeholderTextColor="#9CA3AF"
+              value={otp}
+              onChangeText={(t) => setOtp(t.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              returnKeyType="done"
+              onSubmitEditing={handleVerifyOtp}
+            />
+            <Pressable
+              onPress={() => { setStep('email'); setOtp('') }}
+              className="mb-4"
+            >
+              <Text className="text-sm text-gray-400 text-center">
+                Wrong email?{' '}
+                <Text className="text-blue-500 font-medium">Change it</Text>
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleVerifyOtp}
+              disabled={!otpValid || loading}
+              className="h-[52px] rounded-xl items-center justify-center mb-4"
+              style={{ backgroundColor: otpValid ? '#2563EB' : '#E5E7EB' }}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text
+                  className="text-base font-semibold"
+                  style={{ color: otpValid ? '#fff' : '#9CA3AF' }}
+                >
+                  Verify & Continue
+                </Text>
+              )}
+            </Pressable>
           </>
         )}
-      </Pressable>
 
-      {/* Legal */}
-      <Text className="text-xs text-gray-400 text-center leading-5">
-        By continuing you agree to our{' '}
-        <Text
-          className="underline"
-          onPress={() => Linking.openURL('https://settl.in/terms')}
-        >
-          Terms
-        </Text>{' '}
-        &{' '}
-        <Text
-          className="underline"
-          onPress={() => Linking.openURL('https://settl.in/privacy')}
-        >
-          Privacy Policy
+        {/* Legal */}
+        <Text className="text-xs text-gray-400 text-center leading-5">
+          By continuing you agree to our{' '}
+          <Text
+            className="underline"
+            onPress={() => Linking.openURL('https://settl.in/terms')}
+          >
+            Terms
+          </Text>{' '}
+          &{' '}
+          <Text
+            className="underline"
+            onPress={() => Linking.openURL('https://settl.in/privacy')}
+          >
+            Privacy Policy
+          </Text>
         </Text>
-      </Text>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   )
 }
