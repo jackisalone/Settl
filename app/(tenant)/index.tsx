@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import { Bell } from 'lucide-react-native'
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
@@ -181,6 +182,7 @@ function EmptyState({ city }: { city: string }) {
 // ─── Home screen ──────────────────────────────────────────────────────────────
 
 export default function TenantHomeScreen() {
+  const router = useRouter()
   const { profile, session } = useAuthStore()
   const { shortlistedIds, setShortlistedIds, addToShortlist, removeFromShortlist } =
     useShortlistStore()
@@ -293,9 +295,7 @@ export default function TenantHomeScreen() {
               reviewCount={item.reviewCount}
               isShortlisted={shortlistedIds.has(item.listing.id)}
               onShortlist={() => handleShortlist(item.listing.id)}
-              onPress={() => {
-                // Navigate to listing detail — to be built
-              }}
+              onPress={() => router.push(`/(tenant)/listing/${item.listing.id}`)}
             />
           )}
         />
