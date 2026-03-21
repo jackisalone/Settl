@@ -93,9 +93,7 @@ export default function OnboardingScreen() {
 
       const { error } = await supabase.from('users').insert({
         id: user.id,
-        // users table uses `phone` as the primary identifier —
-        // storing email here until a schema migration adds an email column
-        phone: user.email ?? user.id,
+        email: user.email ?? null,
         name: name.trim(),
         role,
       })

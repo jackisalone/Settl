@@ -232,27 +232,30 @@ export type Database = {
           avatar_url: string | null
           city: string | null
           created_at: string | null
+          email: string | null
           id: string
           name: string | null
-          phone: string
+          phone: string | null
           role: string
         }
         Insert: {
           avatar_url?: string | null
           city?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
           name?: string | null
-          phone: string
+          phone?: string | null
           role: string
         }
         Update: {
           avatar_url?: string | null
           city?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
           name?: string | null
-          phone?: string
+          phone?: string | null
           role?: string
         }
         Relationships: []

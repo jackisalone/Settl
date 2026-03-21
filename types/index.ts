@@ -9,7 +9,8 @@ type OwnerSubscriptionRow = Tables<'owner_subscriptions'>
 
 export interface User {
   id: string
-  phone: string
+  phone?: string | null
+  email?: string | null
   name: string | null
   role: 'tenant' | 'owner'
   avatarUrl?: string | null
@@ -69,6 +70,7 @@ export function mapUser(row: UserRow): User {
   return {
     id: row.id,
     phone: row.phone,
+    email: row.email,
     name: row.name,
     role: row.role as 'tenant' | 'owner',
     avatarUrl: row.avatar_url,
