@@ -199,6 +199,7 @@ function MyReviewsModal({ visible, userId, onClose }: MyReviewsModalProps) {
           setReviews((data ?? []) as unknown as ReviewRow[])
           setLoading(false)
         })
+        .catch(() => setLoading(false))
     }, [visible, userId]),
   )
 
@@ -389,7 +390,7 @@ export default function TenantProfileScreen() {
       const { error: updateError } = await supabase
         .from('users')
         .update({ avatar_url: avatarUrl })
-        .eq('id', userId!)
+        .eq('id', userId ?? '')
 
       if (updateError) throw updateError
 
@@ -407,7 +408,7 @@ export default function TenantProfileScreen() {
     const { error } = await supabase
       .from('users')
       .update({ name, city })
-      .eq('id', userId!)
+      .eq('id', userId ?? '')
 
     if (error) throw error
     if (profile) setProfile({ ...profile, name, city })

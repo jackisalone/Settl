@@ -63,7 +63,7 @@ export default function SubscriptionScreen() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { session, profile } = useAuthStore()
-  const ownerId = session?.user.id!
+  const ownerId = session?.user.id ?? ''
 
   const sheetRef = useRef<BottomSheet>(null)
   const [sheetEmail, setSheetEmail] = useState(profile?.email ?? '')
@@ -73,6 +73,7 @@ export default function SubscriptionScreen() {
   const { data: existingRequest, isLoading: checkingRequest } = useQuery({
     queryKey: ['upgrade-request', ownerId],
     queryFn: () => fetchUpgradeRequest(ownerId),
+    enabled: !!ownerId,
     staleTime: 5 * 60 * 1000,
   })
 

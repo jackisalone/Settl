@@ -677,7 +677,7 @@ export default function ListingDetailScreen() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['listing', id],
-    queryFn: () => fetchDetail(id),
+    queryFn: () => fetchDetail(id!),
     enabled: !!id,
   })
 

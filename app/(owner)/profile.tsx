@@ -243,6 +243,7 @@ export default function OwnerProfileScreen() {
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
   async function handleAvatarPress() {
+    if (!userId) return
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Please allow photo access to change your avatar.')
@@ -279,7 +280,7 @@ export default function OwnerProfileScreen() {
       const { error: updateError } = await supabase
         .from('users')
         .update({ avatar_url: avatarUrl })
-        .eq('id', userId!)
+        .eq('id', userId ?? '')
 
       if (updateError) throw updateError
 
@@ -301,7 +302,7 @@ export default function OwnerProfileScreen() {
     const { error } = await supabase
       .from('users')
       .update({ name, phone: normalised })
-      .eq('id', userId!)
+      .eq('id', userId ?? '')
 
     if (error) throw error
     if (profile) setProfile({ ...profile, name, phone: normalised })
