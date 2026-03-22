@@ -1,13 +1,18 @@
-import { Tabs } from 'expo-router'
-import { Heart, Home, Search, User } from 'lucide-react-native'
+import { Tabs, Redirect } from 'expo-router'
+import { Building2, ChartBar, User } from 'lucide-react-native'
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'
-import { useShortlistStore } from '@/store/shortlistStore'
+import { useAuthStore } from '@/store/authStore'
 
 const ACTIVE = '#2563EB'
 const INACTIVE = '#9CA3AF'
 
-export default function TenantLayout() {
-  const count = useShortlistStore((s) => s.shortlistedIds.size)
+export default function OwnerLayout() {
+  const { profile } = useAuthStore()
+
+  // Redirect authenticated tenants who land on owner routes back to their dashboard
+  if (profile && profile.role !== 'owner') {
+    return <Redirect href="/(tenant)" />
+  }
 
   return (
     <BottomSheetModalProvider>
@@ -32,30 +37,15 @@ export default function TenantLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Home',
-            tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+            title: 'My Listings',
+            tabBarIcon: ({ color, size }) => <Building2 size={size} color={color} />,
           }}
         />
         <Tabs.Screen
-          name="search"
+          name="analytics"
           options={{
-            title: 'Search',
-            tabBarIcon: ({ color, size }) => <Search size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="shortlist"
-          options={{
-            title: 'Shortlist',
-            tabBarBadge: count > 0 ? count : undefined,
-            tabBarBadgeStyle: {
-              backgroundColor: '#2563EB',
-              fontSize: 10,
-              minWidth: 16,
-              height: 16,
-              lineHeight: 16,
-            },
-            tabBarIcon: ({ color, size }) => <Heart size={size} color={color} />,
+            title: 'Analytics',
+            tabBarIcon: ({ color, size }) => <ChartBar size={size} color={color} />,
           }}
         />
         <Tabs.Screen

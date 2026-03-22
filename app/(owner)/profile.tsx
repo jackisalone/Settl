@@ -14,59 +14,55 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
 import {
+  Building2,
   Camera,
   ChevronRight,
+  Crown,
   FileText,
   Heart,
   LifeBuoy,
   LogOut,
-  MapPin,
-  MessageCircle,
   Pen,
+  Phone,
   Shield,
-  Star,
 } from 'lucide-react-native'
-import { useFocusEffect } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { useCallback, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
-import { useShortlistStore } from '@/store/shortlistStore'
-import { mapUser } from '@/types/index'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Stats {
-  shortlisted: number
-  citiesExplored: number
-  reviewsGiven: number
+interface OwnerStats {
+  activeListings: number
+  totalListings: number
+  totalShortlists: number
 }
 
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
-async function fetchStats(userId: string): Promise<Stats> {
-  const [shortlistRes, reviewsRes] = await Promise.all([
-    supabase
-      .from('shortlists')
-      .select('pg_id, pg_listings(city)')
-      .eq('tenant_id', userId),
-    supabase
-      .from('reviews')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', userId),
-  ])
+async function fetchOwnerStats(ownerId: string): Promise<OwnerStats> {
+  const listingsRes = await supabase
+    .from('pg_listings')
+    .select('id, is_active')
+    .eq('owner_id', ownerId)
 
-  const rows = (shortlistRes.data ?? []) as Array<{
-    pg_id: string | null
-    pg_listings: { city: string } | null
-  }>
+  const listings = listingsRes.data ?? []
+  if (listings.length === 0) {
+    return { activeListings: 0, totalListings: 0, totalShortlists: 0 }
+  }
 
-  const shortlisted = rows.length
-  const citiesExplored = new Set(
-    rows.map((r) => r.pg_listings?.city).filter(Boolean),
-  ).size
-  const reviewsGiven = reviewsRes.count ?? 0
+  const listingIds = listings.map((l) => l.id)
+  const shortlistsRes = await supabase
+    .from('shortlists')
+    .select('id', { count: 'exact', head: true })
+    .in('pg_id', listingIds)
 
-  return { shortlisted, citiesExplored, reviewsGiven }
+  return {
+    activeListings: listings.filter((l) => l.is_active).length,
+    totalListings: listings.length,
+    totalShortlists: shortlistsRes.count ?? 0,
+  }
 }
 
 // ─── Edit Profile Modal ───────────────────────────────────────────────────────
@@ -74,27 +70,27 @@ async function fetchStats(userId: string): Promise<Stats> {
 interface EditProfileModalProps {
   visible: boolean
   initialName: string
-  initialCity: string
+  initialPhone: string
   onClose: () => void
-  onSave: (name: string, city: string) => Promise<void>
+  onSave: (name: string, phone: string) => Promise<void>
 }
 
 function EditProfileModal({
   visible,
   initialName,
-  initialCity,
+  initialPhone,
   onClose,
   onSave,
 }: EditProfileModalProps) {
   const [name, setName] = useState(initialName)
-  const [city, setCity] = useState(initialCity)
+  const [phone, setPhone] = useState(initialPhone)
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
     if (!name.trim()) return
     setSaving(true)
     try {
-      await onSave(name.trim(), city.trim())
+      await onSave(name.trim(), phone.trim())
       onClose()
     } catch (err: any) {
       Alert.alert('Save failed', err?.message ?? 'Please try again.')
@@ -111,7 +107,6 @@ function EditProfileModal({
       onRequestClose={onClose}
     >
       <SafeAreaView style={styles.modalContainer}>
-        {/* Modal header */}
         <View style={styles.modalHeader}>
           <Pressable onPress={onClose} style={styles.modalCancelBtn}>
             <Text style={styles.modalCancelText}>Cancel</Text>
@@ -125,12 +120,7 @@ function EditProfileModal({
             {saving ? (
               <ActivityIndicator size="small" color="#2563EB" />
             ) : (
-              <Text
-                style={[
-                  styles.modalSaveText,
-                  !name.trim() && { color: '#9CA3AF' },
-                ]}
-              >
+              <Text style={[styles.modalSaveText, !name.trim() && { color: '#9CA3AF' }]}>
                 Save
               </Text>
             )}
@@ -150,114 +140,25 @@ function EditProfileModal({
             maxLength={40}
           />
 
-          <Text style={styles.modalFieldLabel}>City</Text>
-          <TextInput
-            style={styles.modalInput}
-            value={city}
-            onChangeText={setCity}
-            placeholder="e.g. Mumbai"
-            placeholderTextColor="#9CA3AF"
-            autoCapitalize="words"
-            maxLength={40}
-          />
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
-  )
-}
-
-// ─── Reviews list modal ───────────────────────────────────────────────────────
-
-interface ReviewRow {
-  id: string
-  rating: number | null
-  text: string | null
-  created_at: string | null
-  pg_listings: { title: string; city: string } | null
-}
-
-interface MyReviewsModalProps {
-  visible: boolean
-  userId: string
-  onClose: () => void
-}
-
-function MyReviewsModal({ visible, userId, onClose }: MyReviewsModalProps) {
-  const [reviews, setReviews] = useState<ReviewRow[]>([])
-  const [loading, setLoading] = useState(false)
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!visible || !userId) return
-      setLoading(true)
-      supabase
-        .from('reviews')
-        .select('id, rating, text, created_at, pg_listings(title, city)')
-        .eq('tenant_id', userId)
-        .order('created_at', { ascending: false })
-        .then(({ data }) => {
-          setReviews((data ?? []) as unknown as ReviewRow[])
-          setLoading(false)
-        })
-    }, [visible, userId]),
-  )
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <View style={{ width: 60 }} />
-          <Text style={styles.modalTitle}>My Reviews</Text>
-          <Pressable onPress={onClose} style={styles.modalCancelBtn}>
-            <Text style={styles.modalCancelText}>Done</Text>
-          </Pressable>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator color="#2563EB" style={{ marginTop: 40 }} />
-        ) : reviews.length === 0 ? (
-          <View style={styles.reviewsEmpty}>
-            <Star size={36} color="#E5E7EB" />
-            <Text style={styles.reviewsEmptyText}>No reviews written yet</Text>
+          <Text style={styles.modalFieldLabel}>WhatsApp / Phone</Text>
+          <View style={styles.phoneInputRow}>
+            <View style={styles.phonePrefix}>
+              <Text style={styles.phonePrefixText}>+91</Text>
+            </View>
+            <TextInput
+              style={[styles.modalInput, styles.phoneInput]}
+              value={phone.startsWith('+91') ? phone.slice(3) : phone}
+              onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
+              placeholder="98765 43210"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="phone-pad"
+              maxLength={10}
+            />
           </View>
-        ) : (
-          <ScrollView contentContainerStyle={{ padding: 16 }}>
-            {reviews.map((r) => (
-              <View key={r.id} style={styles.reviewCard}>
-                <Text style={styles.reviewCardTitle} numberOfLines={1}>
-                  {r.pg_listings?.title ?? 'Unknown PG'}
-                </Text>
-                <Text style={styles.reviewCardCity}>
-                  📍 {r.pg_listings?.city ?? ''}
-                </Text>
-                <View style={styles.reviewCardStars}>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Text key={i} style={{ color: i < (r.rating ?? 0) ? '#F59E0B' : '#E5E7EB', fontSize: 14 }}>
-                      ★
-                    </Text>
-                  ))}
-                  <Text style={styles.reviewCardDate}>
-                    {r.created_at
-                      ? new Date(r.created_at).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })
-                      : ''}
-                  </Text>
-                </View>
-                {r.text ? (
-                  <Text style={styles.reviewCardText}>{r.text}</Text>
-                ) : null}
-              </View>
-            ))}
-          </ScrollView>
-        )}
+          <Text style={styles.phoneHint}>
+            Tenants use this number to contact you via WhatsApp
+          </Text>
+        </ScrollView>
       </SafeAreaView>
     </Modal>
   )
@@ -312,38 +213,32 @@ function MenuItem({
   )
 }
 
-// ─── Profile screen ───────────────────────────────────────────────────────────
+// ─── Owner profile screen ─────────────────────────────────────────────────────
 
-export default function TenantProfileScreen() {
+export default function OwnerProfileScreen() {
   const { profile, setProfile, clearAuth, session } = useAuthStore()
-  const shortlistedCount = useShortlistStore((s) => s.shortlistedIds.size)
+  const router = useRouter()
 
   const userId = session?.user.id
 
-  const [stats, setStats] = useState<Stats>({
-    shortlisted: shortlistedCount,
-    citiesExplored: 0,
-    reviewsGiven: 0,
+  const [stats, setStats] = useState<OwnerStats>({
+    activeListings: 0,
+    totalListings: 0,
+    totalShortlists: 0,
   })
   const [statsLoading, setStatsLoading] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [editModalVisible, setEditModalVisible] = useState(false)
-  const [reviewsModalVisible, setReviewsModalVisible] = useState(false)
 
   // ── Refresh on screen focus ────────────────────────────────────────────────
   useFocusEffect(
     useCallback(() => {
       if (!userId) return
       setStatsLoading(true)
-      fetchStats(userId)
-        .then((s) =>
-          setStats({
-            ...s,
-            shortlisted: shortlistedCount > 0 ? shortlistedCount : s.shortlisted,
-          }),
-        )
+      fetchOwnerStats(userId)
+        .then(setStats)
         .finally(() => setStatsLoading(false))
-    }, [userId, shortlistedCount]),
+    }, [userId]),
   )
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
@@ -365,12 +260,10 @@ export default function TenantProfileScreen() {
 
     const asset = result.assets[0]
     const ext = asset.uri.split('.').pop() ?? 'jpg'
-    // Store under user's own ID folder so existing storage policy applies
     const path = `${userId}/avatar.${ext}`
 
     setUploadingPhoto(true)
     try {
-      // Fetch the image as a blob
       const response = await fetch(asset.uri)
       const blob = await response.blob()
 
@@ -380,10 +273,7 @@ export default function TenantProfileScreen() {
 
       if (uploadError) throw uploadError
 
-      const { data: urlData } = supabase.storage
-        .from('pg-photos')
-        .getPublicUrl(path)
-
+      const { data: urlData } = supabase.storage.from('pg-photos').getPublicUrl(path)
       const avatarUrl = urlData.publicUrl
 
       const { error: updateError } = await supabase
@@ -393,7 +283,6 @@ export default function TenantProfileScreen() {
 
       if (updateError) throw updateError
 
-      // Update Zustand store
       if (profile) setProfile({ ...profile, avatarUrl })
     } catch (err: any) {
       Alert.alert('Upload failed', err?.message ?? 'Please try again.')
@@ -403,14 +292,19 @@ export default function TenantProfileScreen() {
   }
 
   // ── Save profile edits ─────────────────────────────────────────────────────
-  async function handleSaveProfile(name: string, city: string) {
+  async function handleSaveProfile(name: string, phone: string) {
+    // Normalise phone to E.164 format for WhatsApp deep links
+    const normalised = phone
+      ? phone.startsWith('+') ? phone : `+91${phone}`
+      : null
+
     const { error } = await supabase
       .from('users')
-      .update({ name, city })
+      .update({ name, phone: normalised })
       .eq('id', userId!)
 
     if (error) throw error
-    if (profile) setProfile({ ...profile, name, city })
+    if (profile) setProfile({ ...profile, name, phone: normalised })
   }
 
   // ── Sign out ───────────────────────────────────────────────────────────────
@@ -430,6 +324,13 @@ export default function TenantProfileScreen() {
 
   const initial = profile?.name?.[0]?.toUpperCase() ?? '?'
 
+  // Display phone without +91 prefix for readability
+  const displayPhone = profile?.phone
+    ? profile.phone.startsWith('+91')
+      ? profile.phone.slice(3)
+      : profile.phone
+    : null
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -448,7 +349,6 @@ export default function TenantProfileScreen() {
                 <Text style={styles.avatarInitial}>{initial}</Text>
               )}
             </View>
-            {/* Camera overlay */}
             <View style={styles.cameraOverlay}>
               {uploadingPhoto ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -458,15 +358,24 @@ export default function TenantProfileScreen() {
             </View>
           </Pressable>
 
-          {/* Name */}
           <Text style={styles.profileName}>{profile?.name ?? 'Your Name'}</Text>
           <Text style={styles.profileEmail}>{profile?.email ?? session?.user.email ?? ''}</Text>
 
+          {/* Phone badge */}
+          {displayPhone ? (
+            <View style={styles.phoneBadge}>
+              <Phone size={12} color="#059669" />
+              <Text style={styles.phoneBadgeText}>+91 {displayPhone}</Text>
+            </View>
+          ) : (
+            <Pressable onPress={() => setEditModalVisible(true)} style={styles.addPhoneBtn}>
+              <Phone size={12} color="#D97706" />
+              <Text style={styles.addPhoneBtnText}>Add phone number</Text>
+            </Pressable>
+          )}
+
           {/* Edit Profile button */}
-          <Pressable
-            onPress={() => setEditModalVisible(true)}
-            style={styles.editProfileBtn}
-          >
+          <Pressable onPress={() => setEditModalVisible(true)} style={styles.editProfileBtn}>
             <Pen size={13} color="#2563EB" />
             <Text style={styles.editProfileBtnText}>Edit Profile</Text>
           </Pressable>
@@ -479,21 +388,21 @@ export default function TenantProfileScreen() {
           ) : (
             <>
               <StatCard
+                icon={<Building2 size={20} color="#2563EB" />}
+                value={stats.activeListings}
+                label="Active"
+              />
+              <View style={styles.statDivider} />
+              <StatCard
+                icon={<Building2 size={20} color="#6B7280" />}
+                value={stats.totalListings}
+                label="Total PGs"
+              />
+              <View style={styles.statDivider} />
+              <StatCard
                 icon={<Heart size={20} color="#EF4444" />}
-                value={stats.shortlisted}
+                value={stats.totalShortlists}
                 label="Shortlisted"
-              />
-              <View style={styles.statDivider} />
-              <StatCard
-                icon={<MapPin size={20} color="#2563EB" />}
-                value={stats.citiesExplored}
-                label="Cities"
-              />
-              <View style={styles.statDivider} />
-              <StatCard
-                icon={<Star size={20} color="#F59E0B" />}
-                value={stats.reviewsGiven}
-                label="Reviews"
               />
             </>
           )}
@@ -511,9 +420,9 @@ export default function TenantProfileScreen() {
             />
             <View style={styles.menuDivider} />
             <MenuItem
-              icon={<MessageCircle size={18} color="#6B7280" />}
-              label="My Reviews"
-              onPress={() => setReviewsModalVisible(true)}
+              icon={<Crown size={18} color="#D97706" />}
+              label="Upgrade to Pro"
+              onPress={() => router.push('/(owner)/subscription')}
             />
           </View>
 
@@ -549,26 +458,16 @@ export default function TenantProfileScreen() {
           </View>
         </View>
 
-        {/* App version */}
         <Text style={styles.versionText}>Settl v1.0.0</Text>
       </ScrollView>
 
-      {/* ── Modals ── */}
       <EditProfileModal
         visible={editModalVisible}
         initialName={profile?.name ?? ''}
-        initialCity={profile?.city ?? ''}
+        initialPhone={displayPhone ?? ''}
         onClose={() => setEditModalVisible(false)}
         onSave={handleSaveProfile}
       />
-
-      {userId && (
-        <MyReviewsModal
-          visible={reviewsModalVisible}
-          userId={userId}
-          onClose={() => setReviewsModalVisible(false)}
-        />
-      )}
     </SafeAreaView>
   )
 }
@@ -629,7 +528,39 @@ const styles = StyleSheet.create({
   profileEmail: {
     fontSize: 13,
     color: '#9CA3AF',
-    marginBottom: 14,
+    marginBottom: 10,
+  },
+  phoneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#D1FAE5',
+    borderRadius: 100,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 12,
+  },
+  phoneBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#065F46',
+  },
+  addPhoneBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 100,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  addPhoneBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#92400E',
   },
   editProfileBtn: {
     flexDirection: 'row',
@@ -654,7 +585,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 20,
     paddingHorizontal: 8,
-    borderRadius: 0,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: '#F3F4F6',
@@ -792,52 +722,31 @@ const styles = StyleSheet.create({
     color: '#111827',
     backgroundColor: '#F9FAFB',
   },
-
-  // Reviews modal
-  reviewsEmpty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingBottom: 60,
+  phoneInputRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  reviewsEmptyText: {
-    fontSize: 15,
-    color: '#9CA3AF',
-  },
-  reviewCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
+  phonePrefix: {
+    height: 50,
+    paddingHorizontal: 14,
+    backgroundColor: '#F3F4F6',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    gap: 4,
-  },
-  reviewCardTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  reviewCardCity: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  reviewCardStars: {
-    flexDirection: 'row',
+    borderRadius: 10,
     alignItems: 'center',
-    gap: 2,
-    marginTop: 2,
+    justifyContent: 'center',
   },
-  reviewCardDate: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    marginLeft: 6,
-  },
-  reviewCardText: {
-    fontSize: 14,
+  phonePrefixText: {
+    fontSize: 16,
     color: '#374151',
-    lineHeight: 20,
+    fontWeight: '600',
+  },
+  phoneInput: {
+    flex: 1,
+  },
+  phoneHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
     marginTop: 4,
   },
 })
